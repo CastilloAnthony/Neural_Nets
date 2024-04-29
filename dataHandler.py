@@ -42,35 +42,27 @@ class DataHandler():
         # Getting data from csv file, processing the datetime of extraction, and droping specific columns
         self.__data = pd.read_csv(filename,skiprows=6)#, parse_dates={'datetime':[0,1]})
         self.__data['datetime'] = self.__data['Date(dd:mm:yyyy)'] + ' ' + self.__data['Time(hh:mm:ss)']
-        self.__data = self.__data.drop(columns=['Date(dd:mm:yyyy)', 'Time(hh:mm:ss)', 'Data_Quality_Level', 'AERONET_Site_Name', 'Last_Date_Processed'])
+        self.__data = self.__data.drop(columns=['Date(dd:mm:yyyy)', 'Time(hh:mm:ss)', 'Data_Quality_Level', 'AERONET_Site_Name', 'Last_Date_Processed']) # Dropping these columns due to their dtype being of a string nature
         self.__data['datetime'] = pd.to_datetime(self.__data['datetime'], format='%d:%m:%Y %H:%M:%S')
         self.__data['datetime'] = pd.to_numeric(self.__data['datetime'])
         self.__data['datetime'] = self.__data['datetime']
 
-        # Setting the Columns that has the AOD Total and replacing -999 with nan in all AOD_Total Wavelengths
-        #self.__AODTotalColumns=range(3,173,8)
-        for iWaveLength in self.__data.columns:#[self.__AODTotalColumns]:
-        # for column in self.__data.columns:
-            self.__data[iWaveLength] = self.__data[iWaveLength].replace(-999., np.nan)
-            # self.__data[column] = self.__data[column].replace(-999., np.nan)
-            if self.__data[iWaveLength].mean() != np.nan and self.__data[iWaveLength].mean() != None:
-                self.__data[iWaveLength] = self.__data[iWaveLength].replace(np.nan, self.__data[iWaveLength].mean())
+        #Replacing -999 with either a 0 or the mean value for the column
+        for iWaveLength in self.__data.columns:
+            self.__data[iWaveLength] = self.__data[iWaveLength].replace(-999., np.nan).astype(np.float32) # Setting to Uniform dypes
+            if pd.isna(self.__data[iWaveLength].mean()):
+                self.__data[iWaveLength] = self.__data[iWaveLength].fillna(0) # Setting nan values to 0
             else:
-                print(self.__data[iWaveLength].mean())
-                self.__data[iWaveLength] = self.__data[iWaveLength].replace(np.nan, 0)
-        self.__data = self.__data.fillna(0)
-        # for iWaveLength in self.__data.columns[self.__AODTotalColumns]:
-        # for column in self.__data.columns:
+                self.__data[iWaveLength] = self.__data[iWaveLength].fillna(self.__data[iWaveLength].mean()) # Setting values to mean of column
             
-        print(self.__data.isnull().any()) # True means NULL is in the column
-        # print(self.__data['AOD_865nm-AOD'])
+        # print(self.__data.isnull().any()) # True means NULL is in the column
 
         # Getting Valid Wavelengths
         self.__validWavelengthCount = 0
         for i in self.__data.columns[self.__AODTotalColumns]:
             if(self.__data[i].mean() > 0):
                 self.__validWavelengthCount += 1
-        
+        # print(self.__data.dtypes)
         self._convertDataToTensor()
 
     def _graphData(self, filename:str):
@@ -131,9 +123,12 @@ class DataHandler():
 
     def _convertDataToTensor(self):
         # print(self.__data.empty)
-        if not self.__data.empty:
+        # if not self.__data.empty:
             # print(self.__data.head())
-            self.__tensorData = convert_to_tensor(self.__data.values, dtype=float64)
+        self.__tensorData = convert_to_tensor(self.__data, dtype=float64, name=self.__siteName)
+        # with open('tensorData', 'w') as file:
+        #     for i in self.__tensorData.numpy():
+        #         file.write(str(i)+'\n')
             # print(self.__tensorData.shape)
             # print(self.__tensorData)
         # self._graphData(filename='data/20230101_20241231_Turlock_CA_USA.tot_lev15') # Not Functional
