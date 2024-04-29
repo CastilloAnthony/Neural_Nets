@@ -30,6 +30,7 @@ class DataHandler():
         self.__data = data
 
     def readDataFromFile(self, filename:str='data/20230101_20241231_Turlock_CA_USA.tot_lev15', format:str='csv'):
+        pd.set_option('display.max_rows', 300, 'display.max_columns', 300)
         # Retriving just the sitename of the data
         with open(filename) as csvfile:
             csvreader = csv.reader(csvfile, delimiter=',')
@@ -38,27 +39,38 @@ class DataHandler():
                 self.__siteName = line[0]
                 break
 
-        # Getting data from csv file
-        self.__data = pd.read_csv(filename,skiprows=6, parse_dates={'datetime':[0,1]})
-        # datetime_utc=pd.to_datetime(self.__data["datetime"], format='%d:%m:%Y %H:%M:%S')
-        # datetime_pac= pd.to_datetime(datetime_utc).dt.tz_localize('UTC').dt.tz_convert('US/Pacific')
-        # self.__data.set_index(datetime_pac, inplace = True)
-        print(self.__data.values)
-        # for i in self.__data:
-        #     print(self.__data[0])
+        # Getting data from csv file, processing the datetime of extraction, and droping specific columns
+        self.__data = pd.read_csv(filename,skiprows=6)#, parse_dates={'datetime':[0,1]})
+        self.__data['datetime'] = self.__data['Date(dd:mm:yyyy)'] + ' ' + self.__data['Time(hh:mm:ss)']
+        self.__data = self.__data.drop(columns=['Date(dd:mm:yyyy)', 'Time(hh:mm:ss)', 'Data_Quality_Level', 'AERONET_Site_Name', 'Last_Date_Processed'])
+        self.__data['datetime'] = pd.to_datetime(self.__data['datetime'], format='%d:%m:%Y %H:%M:%S')
+        self.__data['datetime'] = pd.to_numeric(self.__data['datetime'])
+        self.__data['datetime'] = self.__data['datetime']
 
         # Setting the Columns that has the AOD Total and replacing -999 with nan in all AOD_Total Wavelengths
-        self.__AODTotalColumns=range(3,173,8)
-        for iWaveLength in self.__data.columns[self.__AODTotalColumns]:
-            self.__data[iWaveLength].replace(-999.0, np.nan, inplace = True)
+        #self.__AODTotalColumns=range(3,173,8)
+        for iWaveLength in self.__data.columns:#[self.__AODTotalColumns]:
+        # for column in self.__data.columns:
+            self.__data[iWaveLength] = self.__data[iWaveLength].replace(-999., np.nan)
+            # self.__data[column] = self.__data[column].replace(-999., np.nan)
+            if self.__data[iWaveLength].mean() != np.nan and self.__data[iWaveLength].mean() != None:
+                self.__data[iWaveLength] = self.__data[iWaveLength].replace(np.nan, self.__data[iWaveLength].mean())
+            else:
+                print(self.__data[iWaveLength].mean())
+                self.__data[iWaveLength] = self.__data[iWaveLength].replace(np.nan, 0)
+        self.__data = self.__data.fillna(0)
+        # for iWaveLength in self.__data.columns[self.__AODTotalColumns]:
+        # for column in self.__data.columns:
+            
+        print(self.__data.isnull().any()) # True means NULL is in the column
+        # print(self.__data['AOD_865nm-AOD'])
 
         # Getting Valid Wavelengths
         self.__validWavelengthCount = 0
         for i in self.__data.columns[self.__AODTotalColumns]:
             if(self.__data[i].mean() > 0):
                 self.__validWavelengthCount += 1
-
-        # self._graphData(filename)
+        
         self._convertDataToTensor()
 
     def _graphData(self, filename:str):
@@ -118,9 +130,11 @@ class DataHandler():
         plt.show()
 
     def _convertDataToTensor(self):
-        print(self.__data.empty)
+        # print(self.__data.empty)
         if not self.__data.empty:
-            print(self.__data.head())
+            # print(self.__data.head())
             self.__tensorData = convert_to_tensor(self.__data.values, dtype=float64)
-            print(self.__tensorData)
+            # print(self.__tensorData.shape)
+            # print(self.__tensorData)
+        # self._graphData(filename='data/20230101_20241231_Turlock_CA_USA.tot_lev15') # Not Functional
 # end DataHandler

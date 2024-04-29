@@ -48,44 +48,55 @@ class Arbiter():
             Path('./graphs/availability').mkdir()
             logging.info(time.ctime()+' - ./graphs/availability directory has been created.')
 
-    def _loadModel(self):
-        pass
-
     def _createModel(self):
         self.__model = tf.keras.Sequential([
             # tf.keras.layers.BatchNormalization(),
             # tf.keras.layers.Reshape((1,1)),
             # tf.keras.layers.LSTM(128, return_sequence=True),
             # tf.keras.layers.LSTM(64, return_sequences=True),
-            tf.keras.layers.LSTM(32, activation='tanh', return_sequences=True, kernel_regularizer=tf.keras.regularizers.l2(0.01)),
+            # tf.keras.layers.LSTM(32, activation='tanh', return_sequences=True, kernel_regularizer=tf.keras.regularizers.l2(0.01)),
             # tf.keras.layers.LSTM(16, return_sequences=True),
             # tf.keras.layers.LSTM(8, return_sequences=True),
             # tf.keras.layers.LSTM(4, return_sequences=True),
             tf.keras.layers.Dense(1),
+            tf.keras.layers.Dense(2),
+            tf.keras.layers.Dense(3),
+            tf.keras.layers.Dense(4),
         ])
         self.__model.compile(
             optimizer='sgd',#tf.keras.optimizers.Adam(learning_rate=0.001), 
             loss=tf.keras.losses.MeanSquaredError(),#tf.keras.losses.Huber(),#tf.keras.losses.LogCosh(),#'mse', 
             metrics=['mae', 'mse',]#['accuracy']
         )
-        self.__model.build(input_shape=(32, 1,))
-        self._saveModel()
-    
+        self.__model.build()
+        # , input_shape=(self.__data.getTensorData().shape[0], self.__data.getTensorData().shape[1],)
+        # Tensordata has shape of: (20365, 284)
+
     def _saveModel(self):
-        """Saves the model to a file using the name provided in self.__modelFilename
+        """Saves the model to a file using the name provided in self.__modelName
         """
         try:
             #self.__model.summary()
-            self.__model.save(self.__modelFilename)
+            self.__model.save(self.__modelName)
         except:
-            print(str(time.ctime())+' - Could not save '+self.__modelFilename)
+            print(str(time.ctime())+' - Could not save '+self.__modelName)
 
-    def _train(self):
-        pass
-
-    def _evaluate(self):
-        pass
-
-    def _loadData(self, filename:str='data/20230101_20241231_Turlock_CA_USA.tot_lev15', format:str='csv'):
+    def loadData(self, filename:str='data/20230101_20241231_Turlock_CA_USA.tot_lev15', format:str='csv'):
         self.__data.readDataFromFile(filename, format)
+
+    def readModel(self):
+        """Reads a model from file using the name provided in self.__modelName
+        """
+        try:
+            self.__model = tf.keras.models.load_model(self.__modelName)
+            #self.__model.summary()
+        except:
+            self._createModel()
+
+    def train(self, epochs = 1):
+        self.__model.fit(self.__data.getTensorData(), epochs=epochs, verbose=2)
+        self._saveModel()
+
+    def evaluate(self):
+        pass
 # end Arbiter
