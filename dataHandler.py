@@ -4,14 +4,19 @@ import numpy as np
 import matplotlib.pyplot as plt 
 import matplotlib.dates as mdates
 import matplotlib.patches as mpatches
-from tensorflow import convert_to_tensor, float64
+import tensorflow as tf
+import seaborn as sns
+from windowGenerator import WindowGenerator
 
 class DataHandler():
     def __init__(self):
         self.__siteName = ''
         self.__data = pd.DataFrame()
-        self.__tensorData = None
+        self.__normalizedData = None
+        self.__datetime = None
+        self.__data_std = None
         self.__validWavelengthCount = 0
+        self.__validWavelengths = []
         self.__AODTotalColumns = []
 
     def __del__(self):
@@ -23,14 +28,23 @@ class DataHandler():
     def getData(self):
         return self.__data
     
-    def getTensorData(self):
-        return self.__tensorData
+    def getNormalizedData(self):
+        return self.__normalizedData
+    
+    def getValidWavelengths(self):
+        return self.__validWavelengths
     
     def setData(self, data):
         self.__data = data
 
     def readDataFromFile(self, filename:str='data/20230101_20241231_Turlock_CA_USA.tot_lev15', format:str='csv'):
-        pd.set_option('display.max_rows', 300, 'display.max_columns', 300)
+        """Reads data from the given file and begins processing it.
+
+        Args:
+            filename (str, optional): The name of the file (csv) containing the data. Defaults to 'data/20230101_20241231_Turlock_CA_USA.tot_lev15'.
+            format (str, optional): Unused parameter. Defaults to 'csv'.
+        """
+        # pd.set_option('display.max_rows', 300, 'display.max_columns', 300)
         # Retriving just the sitename of the data
         with open(filename) as csvfile:
             csvreader = csv.reader(csvfile, delimiter=',')
@@ -41,14 +55,19 @@ class DataHandler():
 
         # Getting data from csv file, processing the datetime of extraction, and droping specific columns
         self.__data = pd.read_csv(filename,skiprows=6)#, parse_dates={'datetime':[0,1]})
+        # self.__data['time_of_day'] = pd.to_datetime(self.__data['Time(hh:mm:ss)'], format='%H:%M:%S').dt.as_unit('s') # Supported units are 's', 'ms', 'us', 'ns'
         self.__data['datetime'] = self.__data['Date(dd:mm:yyyy)'] + ' ' + self.__data['Time(hh:mm:ss)']
         self.__data = self.__data.drop(columns=['Date(dd:mm:yyyy)', 'Time(hh:mm:ss)', 'Data_Quality_Level', 'AERONET_Site_Name', 'Last_Date_Processed']) # Dropping these columns due to their dtype being of a string nature
-        self.__data['datetime'] = pd.to_datetime(self.__data['datetime'], format='%d:%m:%Y %H:%M:%S')
-        self.__data['datetime'] = pd.to_numeric(self.__data['datetime'])
-        self.__data['datetime'] = self.__data['datetime']
+        # self.__data['datetime'] = pd.to_datetime(self.__data['datetime'], format='%d:%m:%Y %H:%M:%S')
+        self.__datetime = pd.to_datetime(self.__data.pop('datetime'), format='%d:%m:%Y %H:%M:%S')
 
         #Replacing -999 with either a 0 or the mean value for the column
-        for iWaveLength in self.__data.columns:
+        for i, iWaveLength in enumerate(self.__data.columns):
+            if iWaveLength == 'datetime':
+                continue
+            if 'Total' in iWaveLength and 'AOD' in iWaveLength:
+            # if 'AOD' in iWaveLength and 'nm' in iWaveLength and 'um' not in iWaveLength and 'Rayleigh' not in iWaveLength:
+                self.__AODTotalColumns.append(i)
             self.__data[iWaveLength] = self.__data[iWaveLength].replace(-999., np.nan).astype(np.float32) # Setting to Uniform dypes
             if pd.isna(self.__data[iWaveLength].mean()):
                 self.__data[iWaveLength] = self.__data[iWaveLength].fillna(0) # Setting nan values to 0
@@ -57,13 +76,19 @@ class DataHandler():
             
         # print(self.__data.isnull().any()) # True means NULL is in the column
 
-        # Getting Valid Wavelengths
-        self.__validWavelengthCount = 0
-        for i in self.__data.columns[self.__AODTotalColumns]:
-            if(self.__data[i].mean() > 0):
-                self.__validWavelengthCount += 1
-        # print(self.__data.dtypes)
-        self._convertDataToTensor()
+        # # Getting Valid Wavelengths
+        # self.__validWavelengthCount = 0
+        # for i in self.__data.columns[self.__AODTotalColumns]:
+        #     if(self.__data[i].mean() > 0):
+        #         self.__validWavelengthCount += 1
+
+        
+        # Info, graph, and normalize
+        # print(self.__data.describe().transpose())
+        self._graphData('')
+        self._NormalizeData()
+        self._window_test()
+    # end readDataFromFile
 
     def _graphData(self, filename:str):
         """Generates a graph showing the availabilty of the data.
@@ -71,65 +96,91 @@ class DataHandler():
         Args:
             filename (str): _description_
         """
-        StartDate='2016-01-01 00:00:00'
-        EndDate='2023-12-31 23:59:59'
-
-        ax = plt.figure(figsize=(16*.65,9*.65)).add_subplot(111) # 16:9 resolution scaled down to 65%
-        ax.set_title(self.__siteName + ' Weekly AOD-Total Data Availability for ' + filename[14:18])
-
-        ## Dynamically Adjusting Colors to increase the potential number of colors usable in the graph
-        ### This should allow for all of the colors of the rainbow to be used, the higher number of valid wavelengths in our dataset, the more colors will be selected
-        ### Note: The colors do not necessarily follow what their actual wavelengths are
-        vaildWavelengthsCount = 0
+        # # Getting Valid Wavelengths
+        plot_cols = [] #['AOD_1640nm-Total', 'AOD_412nm-Total', 'AOD_340nm-Total']
+        self.__validWavelengthCount = 0
         for i in self.__data.columns[self.__AODTotalColumns]:
-            if(self.__data[i].mean() >= 0):
-                vaildWavelengthsCount += 1
-        cm = plt.get_cmap('gist_rainbow') # Color Mapping
-        ax.set_prop_cycle(color=[cm(1.*i/vaildWavelengthsCount) for i in range(vaildWavelengthsCount)]) # Setting the color scheme to rainbow colors
+            if(self.__data[i].mean() > 0):
+                self.__validWavelengthCount += 1
+                plot_cols.append(i)
+        self.__validWavelengths = plot_cols
+        
+        plot_features = self.__data[plot_cols]
+        plot_features.index = self.__datetime
+        plots1 = plot_features.plot(subplots=True)
 
-        ## Adding the plots the graph
-        count, handlesList = 0, []
-        ### Comment out the next four lines to show only the AOD Data
+        plot_features = self.__data[plot_cols][:480]
+        plot_features.index = self.__datetime[:480]
+        plots2 = plot_features.plot(subplots=True)
 
-        for iWaveLength in self.__data.columns[self.__AODTotalColumns]: 
-            if(self.__data[iWaveLength].mean() > 0):
-                dfGroup = self.__data.loc[StartDate:EndDate, iWaveLength].dropna().groupby([pd.Grouper(freq='W')]).size()
-                dots = ax.plot(dfGroup[dfGroup <= 4*12*7]/(4*12*7)*100,'.',label=iWaveLength, markersize=vaildWavelengthsCount*3-count*2) # Excluding entries that will go above our 100% scale
-                handlesList.append(dots[0])
-                ax.plot(dfGroup[dfGroup > 4*12*7]/dfGroup[dfGroup > 4*12*7]*100,'.', markersize=vaildWavelengthsCount*3-count*2, c=dots[0].get_color()) # Placing entries with more than 100% availability on the 100% line
-                print('Dropped ', len(self.__data.loc[StartDate:EndDate, iWaveLength])-len(self.__data.loc[StartDate:EndDate, iWaveLength].dropna()), ' NaN entries from ', iWaveLength)
-                count += 1
-
-        ## Formatting the graph
+        # ## Formatting the graph
         plt.gcf().autofmt_xdate()
-        plt.grid(which='major',axis='both')
-        plt.gca().xaxis.set_major_locator(mdates.DayLocator(interval=7, tz='US/Pacific'))
-        plt.gca().xaxis.set_minor_locator(mdates.HourLocator(interval=24, tz='US/Pacific'))
+        # plt.grid(which='major',axis='both')
         plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
-        plt.ylim(0,100)
-        plt.ylabel('Availability %')
-        plt.legend(handles=handlesList, loc='best')
         plt.tight_layout()
+        # plt.show()
 
-        ## Optional, saving the plot to a file as a .png.
-        ### Note: You must save the plot before calling plt.show(), additionally, you must have the relative directory setup otherwise this will produce a "soft" error.
-        ### Change 'False' in the if-statement to True to enable saving the plot as a png
-        if True:
-            filename = self.__siteName + '_' + filename[14:18] + '_' + str(pd.Timestamp.now().strftime('%Y-%m-%d_%H%M%S'))# + StartDate + '_' + EndDate
-            location = 'graphs\\availability\\' + filename
-            plt.savefig(location) # Saves the plot to a .png file.
+        timestamp_s = self.__datetime.map(pd.Timestamp.timestamp)
+        day = 24*60*60
+        self.__data['Day_Sin'] = np.sin(timestamp_s * (2 * np.pi / day))
+        self.__data['Day_Cos'] = np.cos(timestamp_s * (2 * np.pi / day))
+        plt.plot(np.array(self.__data['Day_Sin'])[:500])
+        plt.plot(np.array(self.__data['Day_Cos'])[:500])
+        plt.xlabel('Time [h]')
+        plt.title('Time of day signal')
+        plt.tight_layout()
+        # plt.show()
+    # end _graphData
 
-        plt.show()
+    def _NormalizeData(self):
+        column_indicies = {name: i for i, name, in enumerate(self.__data.columns)}
+        n=len(self.__data)
+        train_df = self.__data[0:int(n*0.7)]
+        val_df = self.__data[int(n*0.7):int(n*0.9)]
+        test_df = self.__data[int(n*0.9):]
+        num_features = self.__data.shape[1]
+        train_mean = train_df.mean()
+        train_std = train_df.std()
 
-    def _convertDataToTensor(self):
-        # print(self.__data.empty)
-        # if not self.__data.empty:
-            # print(self.__data.head())
-        self.__tensorData = convert_to_tensor(self.__data, dtype=float64, name=self.__siteName)
-        # with open('tensorData', 'w') as file:
-        #     for i in self.__tensorData.numpy():
-        #         file.write(str(i)+'\n')
-            # print(self.__tensorData.shape)
-            # print(self.__tensorData)
-        # self._graphData(filename='data/20230101_20241231_Turlock_CA_USA.tot_lev15') # Not Functional
+        train_df = (train_df - train_mean) / train_std
+        val_df = (val_df - train_mean) / train_std
+        test_df = (test_df - train_mean) / train_std
+        self.__normalizedData = (train_df, val_df, test_df,)
+
+        self.__data_std = (self.__data - train_mean) / train_std
+        self.__data_std = self.__data_std.melt(var_name='Column', value_name='Normalized')
+        plt.figure(figsize=(12,6))
+        ax = sns.violinplot(x='Column', y='Normalized', data=self.__data_std[:20000*5])
+        plot0 = ax.set_xticklabels(self.__data.keys(), rotation=45)
+        # plt.show()
+    # end _NormalizeData
+
+    def _window_test(self):
+        w1 = WindowGenerator(input_width=24, label_width=1, shift=24,train_df=self.__normalizedData[0], val_df=self.__normalizedData[1], test_df=self.__normalizedData[2],
+                     label_columns=self.__validWavelengths[-2:-1])
+        print(w1)
+
+        w2 = WindowGenerator(input_width=6, label_width=1, shift=1, train_df=self.__normalizedData[0], val_df=self.__normalizedData[1], test_df=self.__normalizedData[2],
+                     label_columns=self.__validWavelengths[-2:-1])
+        print(w2)
+
+        example_window = tf.stack([np.array(self.__normalizedData[0][:w2.total_window_size]), 
+                                np.array(self.__normalizedData[0][100:100+w2.total_window_size]), 
+                                np.array(self.__normalizedData[0][200:200+w2.total_window_size])])
+        example_inputs, example_labels = w2.split_window(example_window)
+        print('All shapes are: (batch, time, features)')
+        print(f'Window shape: {example_window.shape}')
+        print(f'Inputs shape: {example_inputs.shape}')
+        print(f'Labels shape: {example_labels.shape}')
+
+        # w2.example = example_inputs, example_labels
+        w2.plot(plot_col=self.__validWavelengths[-2])
+        
+        # Each element is an (inputs, label) pair.
+        print(w2.train.element_spec)
+
+        for example_inputs, example_labels in w2.train.take(1):
+            print(f'Inputs shape (batch, time, features): {example_inputs.shape}')
+            print(f'Labels shape (batch, time, features): {example_labels.shape}')
+    # end window
 # end DataHandler

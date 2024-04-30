@@ -53,13 +53,13 @@ class Arbiter():
         # tf.print(self.__data.getTensorData())
         # tf.io.write_file('tensorData', self.__data.getTensorData().numpy)
         normalizer = tf.keras.layers.Normalization(axis=-1)
-        normalizer.adapt(self.__data.getTensorData())
+        normalizer.adapt(self.__data.getNormalizedData()[0])
         self.__model = tf.keras.Sequential([
             # tf.keras.layers.BatchNormalization(),
             # tf.keras.layers.Reshape((1,1)),
             # tf.keras.layers.LSTM(128, return_sequence=True),
             # tf.keras.layers.LSTM(64, return_sequences=True),
-            # tf.keras.layers.LSTM(32, activation='tanh', return_sequences=True, kernel_regularizer=tf.keras.regularizers.l2(0.01)),
+            tf.keras.layers.LSTM(512, activation='tanh', return_sequences=True, kernel_regularizer=tf.keras.regularizers.l2(0.01)),
             # tf.keras.layers.LSTM(16, return_sequences=True),
             # tf.keras.layers.LSTM(8, return_sequences=True),
             # tf.keras.layers.LSTM(4, return_sequences=True),
@@ -102,8 +102,10 @@ class Arbiter():
             self._createModel()
 
     def train(self, epochs = 1):
-        # print(tf.shape(self.__data.getTensorData()))
-        self.__model.fit(self.__data.getTensorData(), epochs=epochs, verbose=2, batch_size=2)
+        # print(tf.shape(self.__data.getTensorData()[0]))
+        print(self.__data.getData().shape)
+        self.__model.fit(self.__data.getData(), self.__data.getData().columns, epochs=epochs, verbose=2, validation_split=0.2)
+        # self.__model.fit(self.__data.getTensorData()[0], self.__data.getTensorData()[1], epochs=epochs, verbose=2, validation_split=0.2)
         # self.__model.fit(tf.convert_to_tensor(list(range(10))).numpy(), epochs=epochs, verbose=2)
         self._saveModel()
         
