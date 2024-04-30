@@ -214,14 +214,14 @@ class DataHandler():
         wide_window.plot(baseline)
 
         linear = tf.keras.Sequential([
-            tf.keras.layers.Dense(units=1)
-        ])
+                tf.keras.layers.Dense(units=1)
+            ])
 
         print('Input shape:', single_step_window.example[0].shape)
         print('Output shape:', linear(single_step_window.example[0]).shape)
 
         # compile_and_fit
-        print(linear)
+        print(type(linear))
         history = self.compile_and_fit(model=linear, window=single_step_window)
 
         val_performance['Linear'] = linear.evaluate(single_step_window.val, return_dict=True)
@@ -244,7 +244,7 @@ class DataHandler():
         early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
                                                             patience=patience,
                                                             mode='min') # 'val_accuracy',
-
+        print(type(model))
         model.compile(loss=tf.keras.losses.MeanSquaredError(),
                         optimizer=tf.keras.optimizers.Adam(),
                         metrics=[tf.keras.metrics.MeanAbsoluteError()]) # 'accuracy'])
