@@ -221,8 +221,8 @@ class DataHandler():
         print('Output shape:', linear(single_step_window.example[0]).shape)
 
         # compile_and_fit
-        print(type(linear))
-        history = self.compile_and_fit(model=linear, window=single_step_window)
+        # print(type(linear), type(single_step_window))
+        history = self.compile_and_fit(linear, single_step_window)
 
         val_performance['Linear'] = linear.evaluate(single_step_window.val, return_dict=True)
         performance['Linear'] = linear.evaluate(single_step_window.test, verbose=0, return_dict=True)
@@ -240,11 +240,12 @@ class DataHandler():
         plt.show()
     # end window
 
-    def compile_and_fit(model, window, patience=2, MAX_EPOCHS=20):
+    def compile_and_fit(self, model, window, patience=2, MAX_EPOCHS=20):
+        # print(type(model), type(window), type(patience))
         early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
                                                             patience=patience,
                                                             mode='min') # 'val_accuracy',
-        print(type(model))
+        
         model.compile(loss=tf.keras.losses.MeanSquaredError(),
                         optimizer=tf.keras.optimizers.Adam(),
                         metrics=[tf.keras.metrics.MeanAbsoluteError()]) # 'accuracy'])

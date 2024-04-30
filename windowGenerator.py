@@ -89,7 +89,7 @@ class WindowGenerator():
                 plt.legend()
 
         plt.xlabel('Time [h]')
-        plt.show()
+        # plt.show()
     # end plot
 
     def make_dataset(self, data):
