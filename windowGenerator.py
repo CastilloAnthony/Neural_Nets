@@ -133,4 +133,8 @@ class WindowGenerator():
             self._example = result
         return result
     # end example
+
+    def getColumnIndicies(self):
+        return self.column_indices
+    # end getColumnIndicies
 # end WindowGenerator

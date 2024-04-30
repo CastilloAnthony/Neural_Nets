@@ -1,3 +1,4 @@
+### Developed by Anthony Castillo ###
 import tensorflow as tf
 from dataHandler import DataHandler
 import time
@@ -52,8 +53,8 @@ class Arbiter():
         # print(self.__data.getTensorData())
         # tf.print(self.__data.getTensorData())
         # tf.io.write_file('tensorData', self.__data.getTensorData().numpy)
-        normalizer = tf.keras.layers.Normalization(axis=-1)
-        normalizer.adapt(self.__data.getNormalizedData()[0])
+        # normalizer = tf.keras.layers.Normalization(axis=-1)
+        # normalizer.adapt(self.__data.getNormalizedData()[0])
         self.__model = tf.keras.Sequential([
             # tf.keras.layers.BatchNormalization(),
             # tf.keras.layers.Reshape((1,1)),
@@ -63,8 +64,7 @@ class Arbiter():
             # tf.keras.layers.LSTM(16, return_sequences=True),
             # tf.keras.layers.LSTM(8, return_sequences=True),
             # tf.keras.layers.LSTM(4, return_sequences=True),
-            normalizer,
-            tf.keras.layers.Dense(10, activation='relu'),
+            # normalizer,
             tf.keras.layers.Dense(10, activation='relu'),
             tf.keras.layers.Dense(1),
         ])
@@ -104,7 +104,7 @@ class Arbiter():
     def train(self, epochs = 1):
         # print(tf.shape(self.__data.getTensorData()[0]))
         print(self.__data.getData().shape)
-        self.__model.fit(self.__data.getData(), self.__data.getData().columns, epochs=epochs, verbose=2, validation_split=0.2)
+        self.__model.fit(self.__data.getNormalizedData()[0], epochs=epochs, verbose=2, validation_split=0.2)
         # self.__model.fit(self.__data.getTensorData()[0], self.__data.getTensorData()[1], epochs=epochs, verbose=2, validation_split=0.2)
         # self.__model.fit(tf.convert_to_tensor(list(range(10))).numpy(), epochs=epochs, verbose=2)
         self._saveModel()

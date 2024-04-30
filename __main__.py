@@ -1,3 +1,4 @@
+### Developed by Anthony Castillo ###
 from arbiter import Arbiter
 
 def main():

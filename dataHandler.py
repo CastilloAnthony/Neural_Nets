@@ -1,3 +1,5 @@
+### Developed by Anthony Castillo ###
+### Refer to this page: https://www.tensorflow.org/tutorials/structured_data/time_series ###
 import csv
 import pandas as pd
 import numpy as np
@@ -7,6 +9,7 @@ import matplotlib.patches as mpatches
 import tensorflow as tf
 import seaborn as sns
 from windowGenerator import WindowGenerator
+from baseline import Baseline
 
 class DataHandler():
     def __init__(self):
@@ -54,7 +57,7 @@ class DataHandler():
                 break
 
         # Getting data from csv file, processing the datetime of extraction, and droping specific columns
-        self.__data = pd.read_csv(filename,skiprows=6)#, parse_dates={'datetime':[0,1]})
+        self.__data = pd.read_csv(filename,skiprows=6, encoding='utf-8')#, parse_dates={'datetime':[0,1]})
         # self.__data['time_of_day'] = pd.to_datetime(self.__data['Time(hh:mm:ss)'], format='%H:%M:%S').dt.as_unit('s') # Supported units are 's', 'ms', 'us', 'ns'
         self.__data['datetime'] = self.__data['Date(dd:mm:yyyy)'] + ' ' + self.__data['Time(hh:mm:ss)']
         self.__data = self.__data.drop(columns=['Date(dd:mm:yyyy)', 'Time(hh:mm:ss)', 'Data_Quality_Level', 'AERONET_Site_Name', 'Last_Date_Processed']) # Dropping these columns due to their dtype being of a string nature
@@ -172,15 +175,83 @@ class DataHandler():
         print(f'Window shape: {example_window.shape}')
         print(f'Inputs shape: {example_inputs.shape}')
         print(f'Labels shape: {example_labels.shape}')
-
+        w2.plot()
         # w2.example = example_inputs, example_labels
-        w2.plot(plot_col=self.__validWavelengths[-2])
-        
+        w2.plot(plot_col=self.__validWavelengths[-3])
+
         # Each element is an (inputs, label) pair.
         print(w2.train.element_spec)
 
         for example_inputs, example_labels in w2.train.take(1):
             print(f'Inputs shape (batch, time, features): {example_inputs.shape}')
             print(f'Labels shape (batch, time, features): {example_labels.shape}')
+
+        single_step_window = WindowGenerator(input_width=1, label_width=1, shift=1, train_df=self.__normalizedData[0], val_df=self.__normalizedData[1], test_df=self.__normalizedData[2],
+            label_columns=['AOD_380nm-Total'])
+        print(single_step_window)
+
+        for example_inputs, example_labels in single_step_window.train.take(1):
+            print(f'Inputs shape (batch, time, features): {example_inputs.shape}')
+            print(f'Labels shape (batch, time, features): {example_labels.shape}')
+            
+        baseline = Baseline(label_index=w2.getColumnIndicies()['AOD_380nm-Total'])
+
+        baseline.compile(loss=tf.keras.losses.MeanSquaredError(),
+                        metrics=[tf.keras.metrics.MeanAbsoluteError()])
+
+        val_performance = {}
+        performance = {}
+        val_performance['Baseline'] = baseline.evaluate(single_step_window.val, return_dict=True)
+        performance['Baseline'] = baseline.evaluate(single_step_window.test, verbose=0, return_dict=True)
+
+        wide_window = WindowGenerator(
+            input_width=24, label_width=24, shift=1, train_df=self.__normalizedData[0], val_df=self.__normalizedData[1], test_df=self.__normalizedData[2],
+            label_columns=['AOD_380nm-Total'])
+
+        print(wide_window)
+        print('Input shape:', wide_window.example[0].shape)
+        print('Output shape:', baseline(wide_window.example[0]).shape)
+        wide_window.plot(baseline)
+
+        linear = tf.keras.Sequential([
+            tf.keras.layers.Dense(units=1)
+        ])
+
+        print('Input shape:', single_step_window.example[0].shape)
+        print('Output shape:', linear(single_step_window.example[0]).shape)
+
+        # compile_and_fit
+        print(linear)
+        history = self.compile_and_fit(model=linear, window=single_step_window)
+
+        val_performance['Linear'] = linear.evaluate(single_step_window.val, return_dict=True)
+        performance['Linear'] = linear.evaluate(single_step_window.test, verbose=0, return_dict=True)
+
+        print('Input shape:', wide_window.example[0].shape)
+        print('Output shape:', linear(wide_window.example[0]).shape)
+
+        wide_window.plot(linear)
+
+        plt.bar(x = range(len(self.__normalizedData[0].columns)),
+        height=linear.layers[0].kernel[:,0].numpy())
+        axis = plt.gca()
+        axis.set_xticks(range(len(self.__normalizedData[0].columns)))
+        _ = axis.set_xticklabels(self.__normalizedData[0].columns, rotation=90)
+        plt.show()
     # end window
+
+    def compile_and_fit(model, window, patience=2, MAX_EPOCHS=20):
+        early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
+                                                            patience=patience,
+                                                            mode='min') # 'val_accuracy',
+
+        model.compile(loss=tf.keras.losses.MeanSquaredError(),
+                        optimizer=tf.keras.optimizers.Adam(),
+                        metrics=[tf.keras.metrics.MeanAbsoluteError()]) # 'accuracy'])
+
+        history = model.fit(window.train, epochs=MAX_EPOCHS,
+                            validation_data=window.val,
+                            callbacks=[early_stopping])
+        return history
+    # end compile_and_fit
 # end DataHandler
