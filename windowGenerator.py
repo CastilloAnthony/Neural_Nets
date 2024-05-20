@@ -80,14 +80,16 @@ class WindowGenerator():
             plt.scatter(self.label_indices, labels[n, :, label_col_index],
                         edgecolors='k', label='Labels', c='#2ca02c', s=64)
             if model is not None:
-                predictions = model(inputs)
+                # predictions = model(inputs)
+                predictions = model.predict(inputs)
+                print(len(self.label_indices), len(predictions), len(predictions[n, :, label_col_index]), label_col_index)
                 plt.scatter(self.label_indices, predictions[n, :, label_col_index],
                             marker='X', edgecolors='k', label='Predictions',
                             c='#ff7f0e', s=64)
 
             if n == 0:
                 plt.legend()
-
+        plt.gcf().suptitle(plot_col)
         plt.xlabel('Time [h]')
         # plt.show()
     # end plot

@@ -10,6 +10,7 @@ import tensorflow as tf
 import seaborn as sns
 from windowGenerator import WindowGenerator
 from baseline import Baseline
+from residualWrapper import ResidualWrapper
 import IPython
 import IPython.display
 from threading import Thread
@@ -27,6 +28,8 @@ class DataHandler():
         self.__AODTotalColumns = []
         self.__threads = []
         self.__num_features = 0
+        self.__window = None
+        self.__target = None
 
     def __del__(self):
         pass
@@ -46,13 +49,34 @@ class DataHandler():
     def setData(self, data):
         self.__data = data
 
-    def readDataFromFile(self, filename:str='data/20230101_20241231_Turlock_CA_USA.tot_lev15', format:str='csv'):
+    def getWindowTrainData(self):
+        return self.__window.train
+    
+    def getWindowTrainValidation(self):
+        return self.__window.val
+    
+    def getWindowTrainTest(self):
+        return self.__window.test
+    
+    def getNumFeatures(self):
+        return self.__num_features
+    
+    def plotModel(self, model):
+        print(model)
+        # for i in self.__validWavelengths:#self.__AODTotalColumns:#self.__target:#
+            # print(i)
+            # self.__window.plot(model, plot_col=i)
+        self.__window.plot(model, plot_col=self.__target)
+        plt.show()
+
+    def readDataFromFile(self, filename:str='data/20230101_20241231_Turlock_CA_USA.tot_lev15', format:str='csv', target='AOD_380nm-Total', conv_width=24, predictions=6):
         """Reads data from the given file and begins processing it.
 
         Args:
             filename (str, optional): The name of the file (csv) containing the data. Defaults to 'data/20230101_20241231_Turlock_CA_USA.tot_lev15'.
             format (str, optional): Unused parameter. Defaults to 'csv'.
         """
+        self.__target=target
         # pd.set_option('display.max_rows', 300, 'display.max_columns', 300)
         # Retriving just the sitename of the data
         with open(filename) as csvfile:
@@ -94,18 +118,6 @@ class DataHandler():
         
         # Info, graph, and normalize
         # print(self.__data.describe().transpose())
-        self._graphData('')
-        self._NormalizeData()
-        self._window_test()
-    # end readDataFromFile
-
-    def _graphData(self, filename:str):
-        """Generates a graph showing the availabilty of the data.
-
-        Args:
-            filename (str): _description_
-        """
-        # # Getting Valid Wavelengths
         plot_cols = [] #['AOD_1640nm-Total', 'AOD_412nm-Total', 'AOD_340nm-Total']
         self.__validWavelengthCount = 0
         for i in self.__data.columns[self.__AODTotalColumns]:
@@ -113,31 +125,56 @@ class DataHandler():
                 self.__validWavelengthCount += 1
                 plot_cols.append(i)
         self.__validWavelengths = plot_cols
+        print('Valid Wavelengths: '+str(self.__validWavelengths))
+        self._graphData()
+        self._NormalizeData()
+        self._createWindow(conv_width=conv_width, predictions=predictions)
+        # self._window_test()
+        # self._multiWindowTest()
+    # end readDataFromFile
+
+    def _graphData(self):
+        """Generates a graph showing the availabilty of the data.
+
+        Args:
+            filename (str): _description_
+        """
+        # # Getting Valid Wavelengths
         
-        plot_features = self.__data[plot_cols]
+        
+        plot_features = self.__data[self.__validWavelengths]
         plot_features.index = self.__datetime
         plots1 = plot_features.plot(subplots=True)
 
-        plot_features = self.__data[plot_cols][:480]
-        plot_features.index = self.__datetime[:480]
-        plots2 = plot_features.plot(subplots=True)
+        # plot_features = self.__data[self.__validWavelengths][:480]
+        # plot_features.index = self.__datetime[:480]
+        # plots2 = plot_features.plot(subplots=True)
 
         # ## Formatting the graph
         plt.gcf().autofmt_xdate()
+        plt.gcf().suptitle('Valid Wavelenghts')
+        # plt.title()
         # plt.grid(which='major',axis='both')
         plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
         plt.tight_layout()
         # plt.show()
 
+        # Creating a time of day signal for the model to utilize
         timestamp_s = self.__datetime.map(pd.Timestamp.timestamp)
         day = 24*60*60
-        self.__data['Day_Sin'] = np.sin(timestamp_s * (2 * np.pi / day))
-        self.__data['Day_Cos'] = np.cos(timestamp_s * (2 * np.pi / day))
-        plt.plot(np.array(self.__data['Day_Sin'])[:500])
-        plt.plot(np.array(self.__data['Day_Cos'])[:500])
-        plt.xlabel('Time [h]')
-        plt.title('Time of day signal')
-        plt.tight_layout()
+        # self.__data['Day_Sin'] = np.sin(timestamp_s * (2 * np.pi / day))
+        # self.__data['Day_Cos'] = np.cos(timestamp_s * (2 * np.pi / day))
+        newColumns = pd.DataFrame({
+            'Day_Sin': np.sin(timestamp_s * (2 * np.pi / day)),
+            'Day_Cos': np.cos(timestamp_s * (2 * np.pi / day)),
+            })
+        self.__data = pd.concat([self.__data, newColumns], axis=1)
+        # plt.figure(figsize=(12, 8))
+        # plt.plot(np.array(self.__data['Day_Sin'])[:500])
+        # plt.plot(np.array(self.__data['Day_Cos'])[:500])
+        # plt.xlabel('Time [h]')
+        # plt.title('Time of day signal')
+        # plt.tight_layout()
         # plt.show()
     # end _graphData
 
@@ -158,11 +195,23 @@ class DataHandler():
 
         self.__data_std = (self.__data - train_mean) / train_std
         self.__data_std = self.__data_std.melt(var_name='Column', value_name='Normalized')
-        plt.figure(figsize=(12,6))
-        ax = sns.violinplot(x='Column', y='Normalized', data=self.__data_std[:20000*5])
-        plot0 = ax.set_xticklabels(self.__data.keys(), rotation=45)
+        # plt.figure(figsize=(12,6))
+        # ax = sns.violinplot(x='Column', y='Normalized', data=self.__data_std[:20000*5])
+        # plot0 = ax.set_xticklabels(self.__data.keys(), rotation=45)
         # plt.show()
     # end _NormalizeData
+
+    def _createWindow(self, conv_width=24, predictions=6):
+        self.__window = WindowGenerator(
+            input_width=conv_width,#self.__validWavelengthCount,
+            label_width=1,#conv_width,#predictions,#self.__validWavelengthCount,
+            shift=1,#1,#predictions,
+            train_df=self.__normalizedData[0], 
+            val_df=self.__normalizedData[1], 
+            test_df=self.__normalizedData[2],
+            label_columns=[self.__target],#self.__validWavelengths,#self.__AODTotalColumns
+        )
+    # end _createWindow
 
     def _window_test(self):
         w1 = WindowGenerator(input_width=24, label_width=1, shift=24,train_df=self.__normalizedData[0], val_df=self.__normalizedData[1], test_df=self.__normalizedData[2],
@@ -218,6 +267,7 @@ class DataHandler():
         print('Input shape:', wide_window.example[0].shape)
         print('Output shape:', baseline(wide_window.example[0]).shape)
         wide_window.plot(baseline)
+        plt.show()
 
         linear = tf.keras.Sequential([
                 tf.keras.layers.Dense(units=1)
@@ -274,6 +324,7 @@ class DataHandler():
         multi_step_dense = tf.keras.Sequential([
             # Shape: (time, features) => (time*features)
             tf.keras.layers.Flatten(),
+            # tf.keras.layers.Dense(units=512, activation='relu'),
             tf.keras.layers.Dense(units=32, activation='relu'),
             tf.keras.layers.Dense(units=32, activation='relu'),
             tf.keras.layers.Dense(units=1),
@@ -290,7 +341,8 @@ class DataHandler():
         IPython.display.clear_output()
         val_performance['Multi step dense'] = multi_step_dense.evaluate(conv_window.val, return_dict=True)
         performance['Multi step dense'] = multi_step_dense.evaluate(conv_window.test, verbose=0, return_dict=True)
-
+        print('Multi step dense')
+        # plt.figure(figsize=(12, 8))
         conv_window.plot(multi_step_dense)
         plt.show()
         
@@ -304,6 +356,7 @@ class DataHandler():
             tf.keras.layers.Conv1D(filters=32,
                                 kernel_size=(CONV_WIDTH,),
                                 activation='relu'),
+            # tf.keras.layers.Dense(512, activation='relu'),
             tf.keras.layers.Dense(units=32, activation='relu'),
             tf.keras.layers.Dense(units=1),
         ])
@@ -374,13 +427,14 @@ class DataHandler():
         val_mae = [v[metric_name] for v in val_performance.values()]
         test_mae = [v[metric_name] for v in performance.values()]
 
+        plt.figure(figsize=(12, 8))
         plt.ylabel('mean_absolute_error [T (degC), normalized]')
         plt.bar(x - 0.17, val_mae, width, label='Validation')
         plt.bar(x + 0.17, test_mae, width, label='Test')
         plt.xticks(ticks=x, labels=performance.keys(),
                 rotation=45)
         _ = plt.legend()
-        plt.show()
+        # plt.show()
 
         for name, value in performance.items():
             print(f'{name:12s}: {value[metric_name]:0.4f}')
@@ -447,9 +501,113 @@ class DataHandler():
         performance['LSTM'] = lstm_model.evaluate( wide_window.test, verbose=0, return_dict=True)
 
         # print()
-
-        
     # end window
+
+    def _multiWindowTest(self):
+        single_step_window = WindowGenerator(
+            # `WindowGenerator` returns all features as labels if you
+            # don't set the `label_columns` argument.
+            input_width=1,
+            label_width=1,
+            shift=1,
+            train_df=self.__normalizedData[0], 
+            val_df=self.__normalizedData[1], 
+            test_df=self.__normalizedData[2],
+            )
+
+        wide_window = WindowGenerator(
+            input_width=24,
+            label_width=24,
+            shift=1,
+            train_df=self.__normalizedData[0], 
+            val_df=self.__normalizedData[1], 
+            test_df=self.__normalizedData[2],
+            )
+
+        for example_inputs, example_labels in wide_window.train.take(1):
+            print(f'Inputs shape (batch, time, features): {example_inputs.shape}')
+            print(f'Labels shape (batch, time, features): {example_labels.shape}')
+        
+        # Baseline
+
+        baseline = Baseline()
+        baseline.compile(loss=tf.keras.losses.MeanSquaredError(),
+                        metrics=[tf.keras.metrics.MeanAbsoluteError()])
+        
+        val_performance = {}
+        performance = {}
+        val_performance['Baseline'] = baseline.evaluate(wide_window.val, return_dict=True)
+        performance['Baseline'] = baseline.evaluate(wide_window.test, verbose=0, return_dict=True)
+
+        # Dense
+
+        dense = tf.keras.Sequential([
+            tf.keras.layers.Dense(units=64, activation='relu'),
+            tf.keras.layers.Dense(units=64, activation='relu'),
+            tf.keras.layers.Dense(units=self.__num_features)
+        ])
+
+        history = self.compile_and_fit(dense, single_step_window)
+
+        IPython.display.clear_output()
+        val_performance['Dense'] = dense.evaluate(single_step_window.val, return_dict=True)
+        performance['Dense'] = dense.evaluate(single_step_window.test, verbose=0, return_dict=True)
+
+        wide_window = WindowGenerator(
+            input_width=24, label_width=24, shift=1,
+            train_df=self.__normalizedData[0], 
+            val_df=self.__normalizedData[1], 
+            test_df=self.__normalizedData[2],
+            )
+
+        lstm_model = tf.keras.models.Sequential([
+            # Shape [batch, time, features] => [batch, time, lstm_units]
+            tf.keras.layers.LSTM(32, return_sequences=True),
+            # Shape => [batch, time, features]
+            tf.keras.layers.Dense(units=self.__num_features)
+        ])
+
+        history = self.compile_and_fit(lstm_model, wide_window)
+
+        IPython.display.clear_output()
+        val_performance['LSTM'] = lstm_model.evaluate( wide_window.val, return_dict=True)
+        performance['LSTM'] = lstm_model.evaluate( wide_window.test, verbose=0, return_dict=True)
+
+        residual_lstm = ResidualWrapper(
+            tf.keras.Sequential([
+            tf.keras.layers.LSTM(32, return_sequences=True),
+            tf.keras.layers.Dense(
+                self.__num_features,
+                # The predicted deltas should start small.
+                # Therefore, initialize the output layer with zeros.
+                kernel_initializer=tf.initializers.zeros())
+        ]))
+
+        history = self.compile_and_fit(residual_lstm, wide_window)
+
+        IPython.display.clear_output()
+        val_performance['Residual LSTM'] = residual_lstm.evaluate(wide_window.val, return_dict=True)
+        performance['Residual LSTM'] = residual_lstm.evaluate(wide_window.test, verbose=0, return_dict=True)
+
+        x = np.arange(len(performance))
+        width = 0.3
+
+        metric_name = 'mean_absolute_error'
+        val_mae = [v[metric_name] for v in val_performance.values()]
+        test_mae = [v[metric_name] for v in performance.values()]
+
+        plt.figure(figsize=(12, 8))
+        plt.bar(x - 0.17, val_mae, width, label='Validation')
+        plt.bar(x + 0.17, test_mae, width, label='Test')
+        plt.xticks(ticks=x, labels=performance.keys(),
+                rotation=45)
+        plt.ylabel('MAE (average over all outputs)')
+        _ = plt.legend()
+        plt.show()
+
+        for name, value in performance.items():
+            print(f'{name:15s}: {value[metric_name]:0.4f}')
+    # end _multiWindowTest
 
     def compile_and_fit(self, model, window, patience=2, MAX_EPOCHS=20):
         # print(type(model), type(window), type(patience))
