@@ -6,6 +6,7 @@ import tensorflow as tf
 from dataHandler import DataHandler
 import matplotlib.pyplot as plt
 import numpy as np
+from random import randint
 print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 # from windowGenerator import WindowGenerator
 # https://www.tensorflow.org/install/pip
@@ -18,7 +19,6 @@ class Arbiter():
         self.__model = None
         self.__modelName = 'Arbiter-Test'
         self.__data = DataHandler()
-        self.__target = None
         
     def __del__(self):
         pass
@@ -114,9 +114,16 @@ class Arbiter():
         except:
             self._createModel(predictions)
 
-    def loadData(self, filename:str='data/20230101_20241231_Turlock_CA_USA.tot_lev15', format:str='csv', target='AOD_380nm-Total', predictions=6):
-        self.__target = target
-        self.__data.readDataFromFile(filename, format, target=self.__target, predictions=predictions)
+    def loadData(self, filename:str='data/20230101_20241231_Turlock_CA_USA.tot_lev15', format:str='csv', target='AOD_380nm-Total', conv_width=24, predictions=6):
+        self.__data.readDataFromFile(filename, format)
+        self.__data.setTarget()
+        self.__data.createWindow(conv_width=conv_width, predictions=predictions)
+
+    def randomizeTarget(self):
+        choice = randint(0, len(self.__data.getValidWavelengths())-1)
+        target = self.__data.getValidWavelengths()[choice]
+        self.__data.setTarget(target)
+        print('Now training on '+target)
 
     def recreateWindow(self):
         self.__data._createWindow()
@@ -167,7 +174,7 @@ class Arbiter():
         val_mae = [v[metric_name] for v in val_performance.values()]
         test_mae = [v[metric_name] for v in performance.values()]
         plt.figure(figsize=(12, 8))
-        plt.ylabel('mean_absolute_error [{self.__target}, normalized]')
+        plt.ylabel(f'mean_absolute_error [{self.__data.getTarget()}, normalized]')
         plt.bar(x - 0.17, val_mae, width, label='Validation Set')
         plt.bar(x + 0.17, test_mae, width, label='Test Set')
         plt.gcf().suptitle('Model Performance')

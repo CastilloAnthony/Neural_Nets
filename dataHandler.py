@@ -61,6 +61,33 @@ class DataHandler():
     def getNumFeatures(self):
         return self.__num_features
     
+    def createWindow(self, conv_width=24, predictions=6):
+        self._createWindow(conv_width=conv_width, predictions=predictions)
+
+    def setTarget(self, target:str=''):
+        if target != '':
+            self.__target = target
+        else:
+            if len(self.__validWavelengths) > 0:
+                print('Select Target:\n')
+                choices = []
+                for i, v in enumerate(self.__validWavelengths):
+                    choices.append(str(i))
+                    print('['+str(i)+']\t'+str(v))
+                userInput = input('Choice: ')
+                if userInput in choices:
+                    self.__target = self.__validWavelengths[int(userInput)]
+                    print('Selected '+self.__validWavelengths[int(userInput)]+'.')
+                else:
+                    print('Please select a valid target.')
+                    self.setTarget(target)
+            else: # Default setting
+                print('Valid Wavelenghts not detected, using default value of AOD_380nm-Total.')
+                self.__target = 'AOD_380nm-Total'
+
+    def getTarget(self):
+        return self.__target
+    
     def plotModel(self, model):
         print(model)
         # for i in self.__validWavelengths:#self.__AODTotalColumns:#self.__target:#
@@ -69,14 +96,14 @@ class DataHandler():
         self.__window.plot(model, plot_col=self.__target)
         plt.show()
 
-    def readDataFromFile(self, filename:str='data/20230101_20241231_Turlock_CA_USA.tot_lev15', format:str='csv', target='AOD_380nm-Total', conv_width=24, predictions=6):
+    def readDataFromFile(self, filename:str='data/20230101_20241231_Turlock_CA_USA.tot_lev15', format:str='csv'):
         """Reads data from the given file and begins processing it.
 
         Args:
             filename (str, optional): The name of the file (csv) containing the data. Defaults to 'data/20230101_20241231_Turlock_CA_USA.tot_lev15'.
             format (str, optional): Unused parameter. Defaults to 'csv'.
         """
-        self.__target=target
+        # self.__target=target
         # pd.set_option('display.max_rows', 300, 'display.max_columns', 300)
         # Retriving just the sitename of the data
         with open(filename) as csvfile:
@@ -124,11 +151,12 @@ class DataHandler():
             if(self.__data[i].mean() > 0):
                 self.__validWavelengthCount += 1
                 plot_cols.append(i)
-        self.__validWavelengths = plot_cols
+        if self.__validWavelengths != plot_cols:
+            self.__validWavelengths = plot_cols
         print('Valid Wavelengths: '+str(self.__validWavelengths))
         self._graphData()
         self._NormalizeData()
-        self._createWindow(conv_width=conv_width, predictions=predictions)
+        # self._createWindow(conv_width=conv_width, predictions=predictions)
         # self._window_test()
         # self._multiWindowTest()
     # end readDataFromFile
