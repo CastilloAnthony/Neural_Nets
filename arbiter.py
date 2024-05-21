@@ -17,7 +17,7 @@ class Arbiter():
         self._setLogger()
         self._configureDirectories()
         self.__model = None
-        self.__modelName = 'Arbiter-Test'
+        self.__modelName = 'Arbiter'
         self.__data = DataHandler()
         
     def __del__(self):
@@ -100,19 +100,28 @@ class Arbiter():
         """
         try:
             #self.__model.summary()
-            self.__model.save('models/'+self.__modelName+'_'+str(time.time())+'.keras')
-            print(str(time.ctime())+' - Model Saved as '+self.__modelName+'_'+str(time.time())+'.keras')
+            self.__model.save('models/'+self.__modelName+'_'+self.__data.getTarget()+'.keras')
+            print(str(time.ctime())+' - Model Saved as '+self.__modelName+'_'+self.__data.getTarget()+'.keras')
         except:
-            print(str(time.ctime())+' - Could not save '+self.__modelName)
+            print(str(time.ctime())+' - Could not save '+self.__modelName+'_'+self.__data.getTarget()+'.keras')
 
     def readModel(self, predictions=6):
         """Reads a model from file using the name provided in self.__modelName
         """
         try:
-            self.__model = tf.keras.models.load_model(self.__modelName+'_checkpoint.keras')
-            #self.__model.summary()
-        except:
-            self._createModel(predictions)
+            self.__model = tf.keras.models.load_model('models/'+self.__modelName+'_'+self.__data.getTarget()+'.keras')
+            print('Found and loaded model '+'models/'+self.__modelName+'_'+self.__data.getTarget()+'.keras')
+            self.evaluate()
+        except Exception as error1:
+            try:
+                print(error1)
+                self.__model = tf.keras.models.load_model('checkpoints/'+self.__modelName+'_'+self.__data.getTarget()+'_checkpoint.keras')
+                print('Found and loaded model '+'checkpoints/'+self.__modelName+'_'+self.__data.getTarget()+'_checkpoint.keras')
+                self.evaluate()
+            except Exception as error2:
+                print(error2)
+                print('Colud not find model for '+self.__data.getTarget())
+                self._createModel(predictions)
 
     def loadData(self, filename:str='data/20230101_20241231_Turlock_CA_USA.tot_lev15', format:str='csv', target='AOD_380nm-Total', conv_width=24, predictions=6):
         self.__data.readDataFromFile(filename, format)
@@ -137,7 +146,7 @@ class Arbiter():
             )
 
         auto_save = tf.keras.callbacks.ModelCheckpoint(
-            filepath=self.__modelName+'_checkpoint.keras',
+            filepath='checkpoints/'+self.__modelName+'_'+self.__data.getTarget()+'_checkpoint.keras',
             monitor='val_loss',
             verbose=1,
             save_best_only=True,
@@ -160,7 +169,7 @@ class Arbiter():
         self._saveModel()
         # self.evaluate()
         # self.__data.plotModel(model=None)
-        
+        print('Completed training on '+self.__data.getTarget())
         return history
         
     def evaluate(self):
@@ -177,10 +186,10 @@ class Arbiter():
         plt.ylabel(f'mean_absolute_error [{self.__data.getTarget()}, normalized]')
         plt.bar(x - 0.17, val_mae, width, label='Validation Set')
         plt.bar(x + 0.17, test_mae, width, label='Test Set')
-        plt.gcf().suptitle('Model Performance')
+        plt.gcf().suptitle(f'Model Performance [{round(val_mae[0], 3), round(test_mae[0], 3)}]')
         plt.xticks(ticks=x, labels=performance.keys(),
                 rotation=45)
         _ = plt.legend()
-        # plt.show()
         self.__data.plotModel(self.__model)
+        plt.show()
 # end Arbiter
