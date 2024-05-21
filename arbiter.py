@@ -137,7 +137,7 @@ class Arbiter():
     def recreateWindow(self):
         self.__data._createWindow()
 
-    def train(self, maxEpochs = 2000, totalPatience=2*50):
+    def train(self, maxEpochs=100, totalPatience=2*5):
         early_stopping = tf.keras.callbacks.EarlyStopping(
             monitor='val_loss',
             verbose=1,

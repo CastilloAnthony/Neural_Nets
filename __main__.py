@@ -12,7 +12,7 @@ def main():
     for i in range(0,200000):
         print('Attempt: '+str(i))
         # newArbiter.loadData(predictions=predictions)
-        # newArbiter.randomizeTarget()
+        newArbiter.randomizeTarget()
         newArbiter.recreateWindow()
         history.append(newArbiter.train())
         # print('\nHistory:')
