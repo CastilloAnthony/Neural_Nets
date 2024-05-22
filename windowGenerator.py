@@ -2,6 +2,7 @@
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
+import time
 
 class WindowGenerator():
     def __init__(self, input_width, label_width, shift,
@@ -60,7 +61,7 @@ class WindowGenerator():
 
     def plot(self, model=None, plot_col='AOD_380nm-Total', max_subplots=3): #  
         inputs, labels = self.example
-        plt.figure(figsize=(12, 8))
+        plt.figure(figsize=(16, 9))
         plot_col_index = self.column_indices[plot_col]
         max_n = min(max_subplots, len(inputs))
         for n in range(max_n):
@@ -80,18 +81,24 @@ class WindowGenerator():
             plt.scatter(self.label_indices, labels[n, :, label_col_index],
                         edgecolors='k', label='Labels', c='#2ca02c', s=64)
             if model is not None:
-                # predictions = model(inputs)
-                predictions = model.predict(inputs)
-                print(len(self.label_indices), len(predictions), len(predictions[n, :, label_col_index]), label_col_index)
+                predictions = model(inputs)
+                # predictions = model.predict(inputs)
+                # print(predictions)
+                print(len(self.label_indices), len(predictions), len(predictions[n, :, label_col_index]), label_col_index, n, max_n)
                 plt.scatter(self.label_indices, predictions[n, :, label_col_index],
                             marker='X', edgecolors='k', label='Predictions',
                             c='#ff7f0e', s=64)
+                plt.grid(which='major',axis='both')
 
             if n == 0:
                 plt.legend()
         plt.gcf().suptitle(plot_col)
         plt.xlabel('Time [h]')
+        plt.tight_layout()
+        plt.savefig('graphs/'+plot_col+'.png')
+        # plt.savefig('graphs/'+'graph_'+plot_col+'.png')
         # plt.show()
+        # plt.savefig('graphs/temp/'+str(round(time.time(),3))+'_'+plot_col+'.png')
     # end plot
 
     def make_dataset(self, data):

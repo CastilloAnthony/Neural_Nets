@@ -7,6 +7,9 @@ from dataHandler import DataHandler
 import matplotlib.pyplot as plt
 import numpy as np
 from random import randint
+from baseline import Baseline
+from residualWrapper import ResidualWrapper
+
 print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 # from windowGenerator import WindowGenerator
 # https://www.tensorflow.org/install/pip
@@ -14,14 +17,13 @@ print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
 class Arbiter():
     def __init__(self):
-        self._setLogger()
         self._configureDirectories()
         self.__model = None
         self.__modelName = 'Arbiter'
         self.__data = DataHandler()
         
     def __del__(self):
-        pass
+        del self.__model, self.__modelName, self.__data
 
     def _configureFilename(self, timeData):
         currTimeString = str(timeData[0])
@@ -36,9 +38,6 @@ class Arbiter():
         return currTimeString
     
     def _setLogger(self):
-        if not Path('./logs').is_dir():
-            Path('./logs').mkdir()
-            print(time.ctime()+' - ./logs directory has been created.')
         self.__currTime = time.localtime()
         logging.basicConfig(filename='./logs/'+self._configureFilename(self.__currTime)+'.log', encoding='utf-8', level=logging.DEBUG)
         logging.info(time.ctime()+' - Initializing...')
@@ -46,54 +45,51 @@ class Arbiter():
         print(time.ctime()+' - Saving log to runtime_'+self._configureFilename(self.__currTime)+'.log')
     
     def _configureDirectories(self):
+        if not Path('./logs').is_dir():
+            Path('./logs').mkdir()
+            print(time.ctime()+' - ./logs directory has been created.')
+        self._setLogger()
         if not Path('./data').is_dir():
             Path('./data').mkdir()
             logging.info(time.ctime()+' - ./data directory has been created.')
         if not Path('./graphs').is_dir():
             Path('./graphs').mkdir()
             logging.info(time.ctime()+' - ./graphs directory has been created.')
-        if not Path('./graphs/availability').is_dir():
-            Path('./graphs/availability').mkdir()
-            logging.info(time.ctime()+' - ./graphs/availability directory has been created.')
+        if not Path('./models').is_dir():
+            Path('./models').mkdir()
+            logging.info(time.ctime()+' - ./models directory has been created.')
+        if not Path('./models/checkpoints').is_dir():
+            Path('./models/checkpoints').mkdir()
+            logging.info(time.ctime()+' - ./models/checkpoints directory has been created.')
+        # if not Path('./graphs/availability').is_dir():
+        #     Path('./graphs/availability').mkdir()
+        #     logging.info(time.ctime()+' - ./graphs/availability directory has been created.')
 
-    def _createModel(self, predictions=6):
-        """Creates a new multi step dense model
+    def _createModel(self):#, conv_width=24, predictions=24):
+        """Creates a new residual long short-term memory model
         """
-        print('Number of Features: ', self.__data.getNumFeatures())
-        self.__model = tf.keras.Sequential([
-            # Shape [batch, time, features] => [batch, 1, features]
-            tf.keras.layers.Flatten(),
-            
-            # tf.keras.layers.Dense(units=1024, activation='relu'),
-            # tf.keras.layers.Dropout(rate=0.2),
-            tf.keras.layers.Dense(units=512, activation='relu'),
-            tf.keras.layers.Dropout(rate=0.2),
-            tf.keras.layers.Dense(units=self.__data.getNumFeatures(), activation='relu'),
-            tf.keras.layers.Dropout(rate=0.2),
-            tf.keras.layers.Dense(units=1),
+        activationFunction = 'relu'
+        print(tf.keras.config.floatx())
+        tf.keras.backend.set_floatx('float64')
+        print(tf.keras.config.floatx())
+        self.__model = ResidualWrapper (
+            tf.keras.Sequential([
+            # Multi-Output Residual_lstm
+            # Shape [batch, time, features] => [batch, time, lstm_units]
+            tf.keras.layers.LSTM(32, return_sequences=True),
+            # Shape => [batch, time, features]
+            tf.keras.layers.Dense(self.__data.getNumFeatures(),
+                # The predicted deltas should start small.
+                # Therefore, initialize the output layer with zeros.
+                kernel_initializer=tf.initializers.zeros()
+                )
+        ]))
 
-            # Single Output
-            # tf.keras.layers.Dense(units=64, activation='relu'),
-            # tf.keras.layers.Dense(units=64, activation='relu'),
-            # tf.keras.layers.Dense(units=1),
-
-            # Multi-Output
-            # tf.keras.layers.Dense(units=64, activation='relu'),
-            # tf.keras.layers.Dense(units=64, activation='relu'),
-            # tf.keras.layers.Dense(units=self.__data.getNumFeatures()),
-            # tf.keras.layers.Dense(units=len(self.__data.getValidWavelengths())),
-            # tf.keras.layers.Dense(units=predictions),
-
-            # Add back the time dimension.
-            # Shape: (outputs) => (1, outputs)
-            tf.keras.layers.Reshape([1, -1]),
-            
-            # Shape => [batch, out_steps*features]
-            # tf.keras.layers.Dense(predictions*len(self.__data.getValidWavelengths()), kernel_initializer=tf.initializers.zeros()),
-            # Shape => [batch, out_steps, features]
-            # tf.keras.layers.Reshape([predictions, len(self.__data.getValidWavelengths())]),
-            # tf.keras.layers.Reshape([len(self.__data.getValidWavelengths())]),
-        ])
+        self.__model.compile(
+                loss=tf.keras.losses.MeanSquaredError(),
+                optimizer=tf.keras.optimizers.Adam(),
+                metrics=[tf.keras.metrics.MeanAbsoluteError()]
+            )
 
     def _saveModel(self):
         """Saves the model to a file using the name provided in self.__modelName
@@ -105,28 +101,28 @@ class Arbiter():
         except:
             print(str(time.ctime())+' - Could not save '+self.__modelName+'_'+self.__data.getTarget()+'.keras')
 
-    def readModel(self, predictions=6):
+    def readModel(self, conv_width=24, predictions=6):
         """Reads a model from file using the name provided in self.__modelName
         """
+        self.__data.createWindow(conv_width=conv_width, predictions=predictions, label_columns=False)
         try:
             self.__model = tf.keras.models.load_model('models/'+self.__modelName+'_'+self.__data.getTarget()+'.keras')
             print('Found and loaded model '+'models/'+self.__modelName+'_'+self.__data.getTarget()+'.keras')
-            self.evaluate()
+            # self.evaluate()
         except Exception as error1:
             try:
                 print(error1)
-                self.__model = tf.keras.models.load_model('checkpoints/'+self.__modelName+'_'+self.__data.getTarget()+'_checkpoint.keras')
-                print('Found and loaded model '+'checkpoints/'+self.__modelName+'_'+self.__data.getTarget()+'_checkpoint.keras')
-                self.evaluate()
+                self.__model = tf.keras.models.load_model('models/checkpoints/'+self.__modelName+'_'+self.__data.getTarget()+'_checkpoint.keras')
+                print('Found and loaded model '+'models/checkpoints/'+self.__modelName+'_'+self.__data.getTarget()+'_checkpoint.keras')
+                # self.evaluate()
             except Exception as error2:
                 print(error2)
                 print('Colud not find model for '+self.__data.getTarget())
-                self._createModel(predictions)
+                self._createModel()
 
-    def loadData(self, filename:str='data/20230101_20241231_Turlock_CA_USA.tot_lev15', format:str='csv', target='AOD_380nm-Total', conv_width=24, predictions=6):
+    def loadData(self, filename:str='data/20230101_20241231_Turlock_CA_USA.tot_lev15', format:str='csv'):
         self.__data.readDataFromFile(filename, format)
         self.__data.setTarget()
-        self.__data.createWindow(conv_width=conv_width, predictions=predictions)
 
     def randomizeTarget(self):
         choice = randint(0, len(self.__data.getValidWavelengths())-1)
@@ -134,31 +130,35 @@ class Arbiter():
         self.__data.setTarget(target)
         print('Now training on '+target)
 
-    def recreateWindow(self):
-        self.__data._createWindow()
+    def recreateWindow(self, conv_width=24, predictions=6):
+        self.__data._createWindow(conv_width=conv_width, predictions=predictions)
 
-    def train(self, maxEpochs=100, totalPatience=2*5):
-        early_stopping = tf.keras.callbacks.EarlyStopping(
-            monitor='val_loss',
-            verbose=1,
-            patience=totalPatience,
-            mode='min',
+    def train(self, maxEpochs=2*5000, totalPatience=None):
+        if totalPatience != None and isinstance(totalPatience, int):
+            print('Total Patience: '+str(totalPatience))
+            early_stopping = tf.keras.callbacks.EarlyStopping(
+                monitor='val_loss',
+                verbose=1,
+                patience=int(totalPatience),
+                mode='min',
+            )
+        else:
+            print('Total Patience: '+str(self.__data.getNumFeatures()))
+            early_stopping = tf.keras.callbacks.EarlyStopping(
+                monitor='val_loss',
+                verbose=1,
+                patience=int(self.__data.getNumFeatures()),
+                mode='min',
             )
 
         auto_save = tf.keras.callbacks.ModelCheckpoint(
-            filepath='checkpoints/'+self.__modelName+'_'+self.__data.getTarget()+'_checkpoint.keras',
+            filepath='models/checkpoints/'+self.__modelName+'_'+self.__data.getTarget()+'_checkpoint.keras',
             monitor='val_loss',
             verbose=1,
             save_best_only=True,
             mode='auto',
             save_freq='epoch',
             )
-        
-        self.__model.compile(
-            loss=tf.keras.losses.MeanSquaredError(),
-            optimizer=tf.keras.optimizers.Adam(),
-            metrics=[tf.keras.metrics.MeanAbsoluteError()]
-        )
 
         history = self.__model.fit(self.__data.getWindowTrainData(), 
                                    epochs=maxEpochs, 
@@ -167,29 +167,28 @@ class Arbiter():
                                    )
 
         self._saveModel()
-        # self.evaluate()
-        # self.__data.plotModel(model=None)
         print('Completed training on '+self.__data.getTarget())
         return history
         
     def evaluate(self):
-        # plt.show()
         val_performance, performance = {}, {}
-        val_performance['Model'] = self.__model.evaluate(self.__data.getWindowTrainValidation(), return_dict=True)
-        performance['Model'] = self.__model.evaluate(self.__data.getWindowTrainTest(), verbose=0, return_dict=True)
+        val_performance['Residual LSTM'] = self.__model.evaluate(self.__data.getWindowTrainValidation(), return_dict=True)
+        performance['Residual LSTM'] = self.__model.evaluate(self.__data.getWindowTrainTest(), verbose=0, return_dict=True)
         x = np.arange(len(performance))
         width = 0.3
         metric_name = 'mean_absolute_error'
         val_mae = [v[metric_name] for v in val_performance.values()]
         test_mae = [v[metric_name] for v in performance.values()]
-        plt.figure(figsize=(12, 8))
+        plt.figure(figsize=(16, 9))
         plt.ylabel(f'mean_absolute_error [{self.__data.getTarget()}, normalized]')
         plt.bar(x - 0.17, val_mae, width, label='Validation Set')
         plt.bar(x + 0.17, test_mae, width, label='Test Set')
-        plt.gcf().suptitle(f'Model Performance [{round(val_mae[0], 3), round(test_mae[0], 3)}]')
+        plt.gcf().suptitle(f'Model Performance of {self.__data.getTarget()} vs Validation Set and Test Set')
         plt.xticks(ticks=x, labels=performance.keys(),
                 rotation=45)
         _ = plt.legend()
-        self.__data.plotModel(self.__model)
-        plt.show()
+        plt.tight_layout()
+        plt.savefig('graphs/'+'performance_'+self.__data.getTarget()+'.png')
+        self.__data.plotModel(self.__model) # Plots the previously assigned Target Column
+        # plt.show()
 # end Arbiter

@@ -3,6 +3,7 @@ logs/
 models/
 *.keras
 *.deb
+*.sh
 tempCodeRunnerFile.py
 
 # Byte-compiled / optimized / DLL files
