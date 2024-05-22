@@ -68,10 +68,9 @@ class Arbiter():
     def _createModel(self):#, conv_width=24, predictions=24):
         """Creates a new residual long short-term memory model
         """
-        activationFunction = 'relu'
-        print(tf.keras.config.floatx())
+        # print(tf.keras.config.floatx())
         tf.keras.backend.set_floatx('float64')
-        print(tf.keras.config.floatx())
+        # print(tf.keras.config.floatx())
         self.__model = ResidualWrapper (
             tf.keras.Sequential([
             # Multi-Output Residual_lstm
@@ -90,6 +89,7 @@ class Arbiter():
                 optimizer=tf.keras.optimizers.Adam(),
                 metrics=[tf.keras.metrics.MeanAbsoluteError()]
             )
+        logging.info(time.ctime()+' - New model created.')
 
     def _saveModel(self):
         """Saves the model to a file using the name provided in self.__modelName
@@ -97,9 +97,12 @@ class Arbiter():
         try:
             #self.__model.summary()
             self.__model.save('models/'+self.__modelName+'_'+self.__data.getTarget()+'.keras')
+            logging.info(time.ctime()+' - Model Saved as '+self.__modelName+'_'+self.__data.getTarget()+'.keras')
             print(str(time.ctime())+' - Model Saved as '+self.__modelName+'_'+self.__data.getTarget()+'.keras')
         except:
+            logging.info(time.ctime()+' - Could not save '+self.__modelName+'_'+self.__data.getTarget()+'.keras')
             print(str(time.ctime())+' - Could not save '+self.__modelName+'_'+self.__data.getTarget()+'.keras')
+
 
     def readModel(self, conv_width=24, predictions=6):
         """Reads a model from file using the name provided in self.__modelName
@@ -107,35 +110,46 @@ class Arbiter():
         self.__data.createWindow(conv_width=conv_width, predictions=predictions, label_columns=False)
         try:
             self.__model = tf.keras.models.load_model('models/'+self.__modelName+'_'+self.__data.getTarget()+'.keras')
-            print('Found and loaded model '+'models/'+self.__modelName+'_'+self.__data.getTarget()+'.keras')
+            logging.info(time.ctime()+' - Found and loaded model '+'models/'+self.__modelName+'_'+self.__data.getTarget()+'.keras')
+            print(time.ctime()+' - Found and loaded model '+'models/'+self.__modelName+'_'+self.__data.getTarget()+'.keras')
             # self.evaluate()
         except Exception as error1:
             try:
+                logging.info(time.ctime()+' - '+str(error1))
                 print(error1)
                 self.__model = tf.keras.models.load_model('models/checkpoints/'+self.__modelName+'_'+self.__data.getTarget()+'_checkpoint.keras')
-                print('Found and loaded model '+'models/checkpoints/'+self.__modelName+'_'+self.__data.getTarget()+'_checkpoint.keras')
+                logging.info(time.ctime()+' - Found and loaded model '+'models/checkpoints/'+self.__modelName+'_'+self.__data.getTarget()+'_checkpoint.keras')
+                print(time.ctime()+' - Found and loaded model '+'models/checkpoints/'+self.__modelName+'_'+self.__data.getTarget()+'_checkpoint.keras')
                 # self.evaluate()
             except Exception as error2:
+                logging.info(time.ctime()+' - '+str(error1))
                 print(error2)
-                print('Colud not find model for '+self.__data.getTarget())
+                logging.info(time.ctime()+' - Colud not find model for '+self.__data.getTarget())
+                print(time.ctime()+' - Colud not find model for '+self.__data.getTarget())
                 self._createModel()
 
     def loadData(self, filename:str='data/20230101_20241231_Turlock_CA_USA.tot_lev15', format:str='csv'):
         self.__data.readDataFromFile(filename, format)
         self.__data.setTarget()
+        logging.info(time.ctime()+' - Target set to '+self.__data.getTarget()+' and data loaded from '+filename)
+        print(time.ctime()+' - Target set to '+self.__data.getTarget()+' and data loaded from '+filename)
 
     def randomizeTarget(self):
         choice = randint(0, len(self.__data.getValidWavelengths())-1)
         target = self.__data.getValidWavelengths()[choice]
         self.__data.setTarget(target)
-        print('Now training on '+target)
+        logging.info(time.ctime()+' - Now training on '+target)
+        print(time.ctime()+' - Now training on '+target)
 
     def recreateWindow(self, conv_width=24, predictions=6):
         self.__data._createWindow(conv_width=conv_width, predictions=predictions)
+        logging.info(time.ctime()+' - New window created with conv_width='+str(conv_width)+' and predictions='+str(predictions))
+        print(time.ctime()+' - New window created with conv_width='+str(conv_width)+' and predictions='+str(predictions))
 
     def train(self, maxEpochs=2*5000, totalPatience=None):
         if totalPatience != None and isinstance(totalPatience, int):
-            print('Total Patience: '+str(totalPatience))
+            logging.info(time.ctime()+' - Now training on '+self.__data.getTarget()+' with max epochs: '+str(maxEpochs)+' and total patience: '+str(totalPatience))
+            print(time.ctime()+' - Now training on '+self.__data.getTarget()+' with max epochs: '+str(maxEpochs)+' and total patience: '+str(totalPatience))
             early_stopping = tf.keras.callbacks.EarlyStopping(
                 monitor='val_loss',
                 verbose=1,
@@ -143,7 +157,8 @@ class Arbiter():
                 mode='min',
             )
         else:
-            print('Total Patience: '+str(self.__data.getNumFeatures()))
+            logging.info(time.ctime()+' - Now training on '+self.__data.getTarget()+' with max epochs: '+str(maxEpochs)+' and total patience: '+str(self.__data.getNumFeatures()))
+            print(time.ctime()+' - Now training on '+self.__data.getTarget()+' with max epochs: '+str(maxEpochs)+' and total patience: '+str(self.__data.getNumFeatures()))
             early_stopping = tf.keras.callbacks.EarlyStopping(
                 monitor='val_loss',
                 verbose=1,
@@ -167,7 +182,8 @@ class Arbiter():
                                    )
 
         self._saveModel()
-        print('Completed training on '+self.__data.getTarget())
+        logging.info(time.ctime()+' - Completed training on '+self.__data.getTarget())
+        print(time.ctime()+' - Completed training on '+self.__data.getTarget())
         return history
         
     def evaluate(self):
@@ -185,10 +201,12 @@ class Arbiter():
         plt.bar(x + 0.17, test_mae, width, label='Test Set')
         plt.gcf().suptitle(f'Model Performance of {self.__data.getTarget()} vs Validation Set and Test Set')
         plt.xticks(ticks=x, labels=performance.keys(),
-                rotation=45)
+                rotation=30)
         _ = plt.legend()
         plt.tight_layout()
         plt.savefig('graphs/'+'performance_'+self.__data.getTarget()+'.png')
         self.__data.plotModel(self.__model) # Plots the previously assigned Target Column
         # plt.show()
+        logging.info(time.ctime()+' - New graphs generated in ./graph/ folder:\n'+'graphs/'+'performance_'+self.__data.getTarget()+'.png\n'+'graphs/'+self.__data.getTarget()+'.png')
+        print(time.ctime()+' - New graphs generated in ./graph/ folder:\n'+'graphs/'+'performance_'+self.__data.getTarget()+'.png\n'+'graphs/'+self.__data.getTarget()+'.png')
 # end Arbiter
