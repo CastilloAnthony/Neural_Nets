@@ -1,7 +1,5 @@
-# Neural_Nets
-## A project for CS-3400/COGS-4680
-### Predicting Future Aerosol Optical Depth Values with Aeronet Data
-
+# Predicting Future Aerosol Optical Depth Values with Aeronet Data
+## A project for Neural Networks (CS-3400/COGS-4680) at CSU Stanislaus
 
 Data can be found [here](https://aeronet.gsfc.nasa.gov/cgi-bin/webtool_aod_v3).
 
