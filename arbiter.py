@@ -1,19 +1,15 @@
 ### Developed by Anthony Castillo ###
+# https://www.tensorflow.org/install/pip
+# https://www.tensorflow.org/guide/gpu
 import time
 import logging
 from pathlib import Path
 import tensorflow as tf
-from dataHandler import DataHandler
 import matplotlib.pyplot as plt
 import numpy as np
 from random import randint
-from baseline import Baseline
+from dataHandler import DataHandler
 from residualWrapper import ResidualWrapper
-
-
-# from windowGenerator import WindowGenerator
-# https://www.tensorflow.org/install/pip
-# https://www.tensorflow.org/guide/gpu
 
 class Arbiter():
     def __init__(self):
@@ -169,6 +165,10 @@ class Arbiter():
     def getTarget(self):
         return self.__data.getTarget()
     # end getTarget
+
+    def getValidWavelengths(self):
+        return self.__data.getValidWavelengths()
+    # end getValidWavelengths
 
     def recreateWindow(self, conv_width:int=24, predictions:int=6):
         self.__data._createWindow(conv_width=conv_width, predictions=predictions)
