@@ -1,7 +1,5 @@
-graphs/
 logs/
 models/
-*.keras
 *.deb
 *.sh
 tempCodeRunnerFile.py

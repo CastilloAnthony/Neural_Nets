@@ -94,7 +94,7 @@ class DataHandler():
         return self.__window.getColumnIndicies()[self.__target]
 
     def plotModel(self, model):
-        print(model)
+        # print(model)
         # for i in self.__validWavelengths:#self.__AODTotalColumns:#self.__target:#
             # print(i)
             # self.__window.plot(model, plot_col=i)
