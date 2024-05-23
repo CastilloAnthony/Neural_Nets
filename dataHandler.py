@@ -163,9 +163,12 @@ class DataHandler():
         # Creating a time of day signal for the model to utilize
         timestamp_s = self.__datetime.map(pd.Timestamp.timestamp)
         day = 24*60*60
+        year = 365.2425*day
         newColumns = pd.DataFrame({
             'Day_Sin': np.sin(timestamp_s * (2 * np.pi / day)),
             'Day_Cos': np.cos(timestamp_s * (2 * np.pi / day)),
+            'Year_Sin': np.sin(timestamp_s * (2 * np.pi / year)),
+            'Year_Cos': np.cos(timestamp_s * (2 * np.pi / year)),
             })
         self.__data = pd.concat([self.__data, newColumns], axis=1)
 
