@@ -1,3 +1,5 @@
+### NON-FUNCTIONAL TUTORIAL METHODS###
+# Originally a part of the dataHandler class.
 from windowGenerator import WindowGenerator
 from baseline import Baseline
 from residualWrapper import ResidualWrapper

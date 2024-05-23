@@ -31,39 +31,51 @@ class DataHandler():
         self.__num_features = 0
         self.__window = None
         self.__target = None
+    # end __init__
 
     def __del__(self):
-        pass
+        del self.__siteName, self.__data, self.__normalizedData, self.__datetime, self.__data_std, self.__validWavelengthCount, self.__validWavelengths, self.__AODTotalColumns, self.__threads, self.__num_features, self.__window, self.__target
+    # end __del__
 
     def getSiteName(self):
         return self.__siteName
-    
+    # end getSiteName
+
     def getData(self):
         return self.__data
-    
+    # end getData
+
     def getNormalizedData(self):
         return self.__normalizedData
-    
+    # end getNormalizedData
+
     def getValidWavelengths(self):
         return self.__validWavelengths
-    
+    # end getValidWavelengths
+
     def setData(self, data):
         self.__data = data
+    # end setData
 
     def getWindowTrainData(self):
         return self.__window.train
+    # end getWindowTrainData
     
     def getWindowTrainValidation(self):
         return self.__window.val
+    # end getWindowTrainValidation
     
     def getWindowTrainTest(self):
         return self.__window.test
-    
+    # end getWindowTrainTest
+
     def getNumFeatures(self):
         return self.__num_features
-    
+    # end getNumFeatures
+
     def createWindow(self, conv_width=24, predictions=24, label_columns=True):
         self._createWindow(conv_width=conv_width, predictions=predictions, label_columns=label_columns)
+    # end createWindow
 
     def setTarget(self, target:str=''):
         if target != '':
@@ -86,12 +98,15 @@ class DataHandler():
                 print('Valid Wavelenghts not detected, using default value of AOD_380nm-Total.')
                 self.__target = 'AOD_380nm-Total'
         print()
-
+    # end setTarget
+    
     def getTarget(self):
         return self.__target
-    
+    # end getTarget
+
     def getTargetIndex(self):
         return self.__window.getColumnIndicies()[self.__target]
+    # end getTargetIndex
 
     def plotModel(self, model):
         # print(model)
@@ -100,6 +115,7 @@ class DataHandler():
             # self.__window.plot(model, plot_col=i)
         self.__window.plot(model=model, plot_col=self.__target, max_subplots=3)# 
         # plt.show()
+    # end plotModel
 
     def readDataFromFile(self, filename:str='data/20230101_20241231_Turlock_CA_USA.tot_lev15', format:str='csv'):
         """Reads data from the given file and begins processing it.
@@ -155,7 +171,7 @@ class DataHandler():
 
         self._graphData()
         self._NormalizeData()
-        # self._createWindow(conv_width=24, predictions=6)
+        # self._createWindow(conv_width=24, predictions=6) # Not necessary
 
         ### Non-functional test environments
         # window_test()
@@ -205,10 +221,8 @@ class DataHandler():
         self.__normalizedData = (train_df, val_df, test_df,)
 
         self.__data_std = (self.__data[self.__validWavelengths])# - train_mean) / train_std
-        # self.__data_std = self.__data_std.melt(var_name='Column', value_name='Normalized')
         self.__data_std = self.__data_std.melt(var_name='Valid Wavelengths', value_name='Normalized')
         plt.figure(figsize=(16,9))
-        # sns.set_theme(rc={'figure.figsize':(16,9)})
         ax = sns.violinplot(x='Valid Wavelengths', y='Normalized', data=self.__data_std[:20000*(len(self.__validWavelengths)+1)], native_scale=True)
         plot0 = ax.set_xticklabels(self.__validWavelengths, rotation=30)#self.__data_std.keys(), rotation=45)
         plt.title('Distribution of Valid Wavelength Data')
@@ -239,3 +253,4 @@ class DataHandler():
             test_df=self.__normalizedData[2],
         )
     # end _createWindow
+# end DataHandler

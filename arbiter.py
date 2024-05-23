@@ -24,9 +24,11 @@ class Arbiter():
         self.__modelName = 'Arbiter'
         self.__data = DataHandler()
         self.__val_performance, self.__performance = {}, {}
+    # end __init__
 
     def __del__(self):
-        del self.__model, self.__modelName, self.__data
+        del self.__model, self.__modelName, self.__data, self.__val_performance, self.__performance
+    # end __del__
 
     def _configureFilename(self, timeData):
         currTimeString = str(timeData[0])
@@ -39,14 +41,16 @@ class Arbiter():
         else:
             currTimeString += str(timeData[2])
         return currTimeString
-    
+    # end _configureFilename
+
     def _setLogger(self):
         self.__currTime = time.localtime()
         logging.basicConfig(filename='./logs/'+self._configureFilename(self.__currTime)+'.log', encoding='utf-8', level=logging.DEBUG)
         logging.info(time.ctime()+' - Initializing...')
         logging.info(time.ctime()+' - Saving log to runtime_'+self._configureFilename(self.__currTime)+'.log')
         print(time.ctime()+' - Saving log to runtime_'+self._configureFilename(self.__currTime)+'.log')
-    
+    # end _setLogger
+
     def _configureDirectories(self):
         if not Path('./logs').is_dir():
             Path('./logs').mkdir()
@@ -64,6 +68,7 @@ class Arbiter():
         if not Path('./models/checkpoints').is_dir():
             Path('./models/checkpoints').mkdir()
             logging.info(time.ctime()+' - ./models/checkpoints directory has been created.')
+    # end _configureDirectories
 
     def _createModel(self):#, conv_width=24, predictions=24):
         """Creates a new residual long short-term memory model
@@ -83,10 +88,10 @@ class Arbiter():
                 kernel_initializer=tf.initializers.zeros()
                 )
         ]))
-
         self.compile()
         logging.info(time.ctime()+' - New model created.')
-
+    # end _createModel
+    
     def compile(self):
         # tf.keras.backend.set_floatx('float64')
         self.__model.compile(
@@ -94,6 +99,7 @@ class Arbiter():
             optimizer=tf.keras.optimizers.Adam(),
             metrics=[tf.keras.metrics.MeanAbsoluteError()]
         )
+    # end compile
 
     def _saveModel(self):
         """Saves the model to a file using the name provided in self.__modelName
@@ -106,6 +112,7 @@ class Arbiter():
         except:
             logging.info(time.ctime()+' - Could not save '+self.__modelName+'_'+self.__data.getTarget()+'.keras')
             print(str(time.ctime())+' - Could not save '+self.__modelName+'_'+self.__data.getTarget()+'.keras')
+    # end _saveModel
 
     def readModel(self, conv_width:int=24, predictions:int=6):
         """Reads a model from file using the name provided in self.__modelName
@@ -132,12 +139,14 @@ class Arbiter():
                 logging.info(time.ctime()+' - Colud not find model for '+self.__data.getTarget())
                 print(time.ctime()+' - Colud not find model for '+self.__data.getTarget())
                 self._createModel()
+    # end readModel
 
     def loadData(self, filename:str='data/20230101_20241231_Turlock_CA_USA.tot_lev15', format:str='csv'):
         self.__data.readDataFromFile(filename, format)
         self.__data.setTarget()
         logging.info(time.ctime()+' - Target set to '+self.__data.getTarget()+' and data loaded from '+filename)
         print(time.ctime()+' - Target set to '+self.__data.getTarget()+' and data loaded from '+filename)
+    # end loadData
 
     def randomizeTarget(self):
         choice = randint(0, len(self.__data.getValidWavelengths())-1)
@@ -145,6 +154,7 @@ class Arbiter():
         self.__data.setTarget(target)
         logging.info(time.ctime()+' - Now training on '+target)
         print(time.ctime()+' - Now training on '+target)
+    # end randomizeTarget
 
     def shiftTarget(self):
         if self.__data.getValidWavelengths().index(self.__data.getTarget()) != len(self.__data.getValidWavelengths())-1:
@@ -154,14 +164,17 @@ class Arbiter():
             self.__data.setTarget(self.__data.getValidWavelengths()[0])
         logging.info(time.ctime()+' - Now training on '+self.__data.getTarget())
         print(time.ctime()+' - Now training on '+self.__data.getTarget())
+    # end shiftTarget
 
     def getTarget(self):
         return self.__data.getTarget()
+    # end getTarget
 
     def recreateWindow(self, conv_width:int=24, predictions:int=6):
         self.__data._createWindow(conv_width=conv_width, predictions=predictions)
         logging.info(time.ctime()+' - New window created with conv_width='+str(conv_width)+' and predictions='+str(predictions))
         print(time.ctime()+' - New window created with conv_width='+str(conv_width)+' and predictions='+str(predictions))
+    # end recreateWindow
 
     def train(self, maxEpochs:int=2*5000, totalPatience:int=None):
         if totalPatience != None and isinstance(totalPatience, int):
@@ -202,7 +215,8 @@ class Arbiter():
         logging.info(time.ctime()+' - Completed training on '+self.__data.getTarget())
         print(time.ctime()+' - Completed training on '+self.__data.getTarget())
         return history
-        
+    # end train
+
     def evaluate(self):
         self.__val_performance[self.__data.getTarget()] = self.__model.evaluate(self.__data.getWindowTrainValidation(), return_dict=True)
         self.__performance[self.__data.getTarget()] = self.__model.evaluate(self.__data.getWindowTrainTest(), verbose=0, return_dict=True)
@@ -224,4 +238,5 @@ class Arbiter():
         # plt.show()
         logging.info(time.ctime()+' - New graphs generated in ./graph/ folder:\n\t'+'graphs/'+'performance_residual_lstm.png\n\t'+'graphs/'+self.__data.getTarget()+'.png')
         print(time.ctime()+' - New graphs generated in ./graph/ folder:\n\t'+'graphs/'+'performance_residual_lstm.png\n\t'+'graphs/'+self.__data.getTarget()+'.png')
+    # end evaluate
 # end Arbiter
