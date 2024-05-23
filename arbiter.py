@@ -209,8 +209,8 @@ class Arbiter():
             validation_data=self.__data.getWindowTrainValidation(),
             callbacks=[early_stopping, auto_save],# 
         )
-        self.__model = ResidualWrapper(tf.keras.models.load_model('models/checkpoints/'+self.__modelName+'_'+self.__data.getTarget()+'_checkpoint.keras'))
-        self.compile()
+        # self.__model = ResidualWrapper(tf.keras.models.load_model('models/checkpoints/'+self.__modelName+'_'+self.__data.getTarget()+'_checkpoint.keras'))
+        # self.compile()
         self._saveModel()
         logging.info(time.ctime()+' - Completed training on '+self.__data.getTarget())
         print(time.ctime()+' - Completed training on '+self.__data.getTarget())
